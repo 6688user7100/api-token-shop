@@ -138,9 +138,12 @@ app.post('/api/register', async (req, res) => {
   const exist = db.prepare('SELECT id FROM users WHERE email=?').get(email);
   if (exist) return res.status(400).json({ error: '该邮箱已注册' });
 
+  const adminEmail = process.env.ADMIN_EMAIL || '';
+  const isAdmin = email.toLowerCase() === adminEmail.toLowerCase();
+
   const hash = await bcrypt.hash(password, 10);
   const id = uuidv4();
-  db.prepare('INSERT INTO users (id, email, password) VALUES (?,?,?)').run(id, email, hash);
+  db.prepare('INSERT INTO users (id, email, password, is_admin) VALUES (?,?,?,?)').run(id, email, hash, isAdmin ? 1 : 0);
   res.json({ message: '注册成功' });
 });
 
@@ -404,6 +407,13 @@ app.get('/api/debug-token', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
+  // 启动时自动确保 ADMIN_EMAIL 对应的用户是管理员
+  const adminEmail = process.env.ADMIN_EMAIL || '';
+  if (adminEmail) {
+    const result = db.prepare('UPDATE users SET is_admin=1 WHERE email=? AND is_admin=0').run(adminEmail);
+    if (result.changes > 0) console.log(`👑 已自动提升 ${adminEmail} 为管理员`);
+  }
+
   console.log(`🚀 服务器已启动：http://localhost:${PORT}`);
   console.log(`📂 数据库：${path.join(__dirname, 'database.sqlite')}`);
   const cfg = getProviderConfig();
