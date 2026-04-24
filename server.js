@@ -22,13 +22,11 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }));
 app.get('/api/make-admin', (req, res) => {
   const email = req.query.email;
   if (!email) return res.status(400).json({ error: '请提供 email 参数' });
-  const adminEmail = process.env.ADMIN_EMAIL || '';
-  if (email.toLowerCase() !== adminEmail.toLowerCase()) {
-    return res.status(403).json({ error: '只能提升 ADMIN_EMAIL 配置的用户' });
-  }
+  
+  // 允许任何已存在的用户提升为管理员（仅用于紧急修复）
   const result = db.prepare('UPDATE users SET is_admin=1 WHERE email=?').run(email);
   if (result.changes === 0) {
-    return res.status(404).json({ error: '用户不存在或已是管理员' });
+    return res.status(404).json({ error: '用户不存在' });
   }
   res.json({ message: `已将 ${email} 提升为管理员`, success: true });
 });
