@@ -1,0 +1,20 @@
+{
+  "name": "api-token-shop",
+  "version": "1.0.0",
+  "description": "API Token 转售商店 — 网页端",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "axios": "^1.15.2",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.9.0",
+    "dotenv": "^16.6.1",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "uuid": "^14.0.0"
+  }
+}

@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Token 商店</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #0f0f1a; color: #e0e0e0; min-height: 100vh; }
+
+    /* 登录/注册区 */
+    .auth-box {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 20px;
+    }
+    .auth-card { background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 16px; padding: 40px; width: 100%; max-width: 400px; }
+    .auth-card h1 { font-size: 24px; margin-bottom: 8px; color: #7c6fff; }
+    .auth-card p { color: #888; margin-bottom: 30px; font-size: 14px; }
+    .auth-card .tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 1px solid #2a2a4a; }
+    .auth-card .tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; color: #888; border-bottom: 2px solid transparent; transition: all 0.2s; }
+    .auth-card .tab.active { color: #7c6fff; border-bottom-color: #7c6fff; }
+    .auth-card .tab:hover { color: #e0e0e0; }
+
+    input { width: 100%; padding: 12px 16px; margin-bottom: 12px; background: #16162a; border: 1px solid #2a2a4a; border-radius: 10px; color: #e0e0e0; font-size: 15px; outline: none; transition: border 0.2s; }
+    input:focus { border-color: #7c6fff; }
+    input::placeholder { color: #555; }
+
+    button { width: 100%; padding: 12px; background: #7c6fff; color: #fff; border: none; border-radius: 10px; font-size: 15px; cursor: pointer; transition: background 0.2s; margin-top: 4px; }
+    button:hover { background: #6a5ae8; }
+    button:disabled { background: #3a3a5a; cursor: not-allowed; }
+    button.secondary { background: #2a2a4a; }
+    button.secondary:hover { background: #3a3a5a; }
+    button.danger { background: #ff4a4a; }
+    button.danger:hover { background: #e03030; }
+    button.small { width: auto; padding: 6px 14px; font-size: 13px; }
+
+    .msg { padding: 10px 14px; border-radius: 8px; margin-bottom: 12px; font-size: 14px; display: none; }
+    .msg.error { background: #2a1515; border: 1px solid #ff4a4a; color: #ff8080; display: block; }
+    .msg.success { background: #152a15; border: 1px solid #4aff4a; color: #80ff80; display: block; }
+
+    /* 主界面 */
+    .dashboard { display: none; min-height: 100vh; }
+    .dashboard.show { display: block; }
+
+    .topbar { background: #1a1a2e; border-bottom: 1px solid #2a2a4a; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 60px; position: sticky; top: 0; z-index: 100; }
+    .topbar .logo { font-size: 18px; font-weight: bold; color: #7c6fff; }
+    .topbar .right { display: flex; align-items: center; gap: 12px; }
+    .topbar .user-email { font-size: 14px; color: #888; }
+    .topbar .admin-tag { background: #7c6fff; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+    .topbar button { width: auto; margin: 0; }
+
+    .container { max-width: 900px; margin: 0 auto; padding: 24px; }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+
+    .card { background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 16px; padding: 24px; margin-bottom: 20px; }
+    .card h2 { font-size: 16px; color: #aaa; margin-bottom: 16px; font-weight: normal; border-bottom: 1px solid #2a2a4a; padding-bottom: 12px; }
+
+    .stat { text-align: center; }
+    .stat .num { font-size: 36px; font-weight: bold; color: #7c6fff; }
+    .stat .label { color: #666; font-size: 13px; margin-top: 4px; }
+
+    .key-item { background: #16162a; border: 1px solid #2a2a4a; border-radius: 10px; padding: 14px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+    .key-item .key-text { font-family: monospace; color: #4aff4a; font-size: 13px; word-break: break-all; }
+    .key-item .key-info { font-size: 12px; color: #666; margin-top: 4px; }
+    .key-item .key-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; margin-left: 12px; }
+
+    .form-row { display: flex; gap: 10px; margin-bottom: 12px; }
+    .form-row input { margin-bottom: 0; }
+
+    /* Chat 测试区 */
+    .chat-area { height: 300px; overflow-y: auto; background: #16162a; border-radius: 10px; padding: 16px; margin-bottom: 12px; border: 1px solid #2a2a4a; }
+    .chat-msg { margin-bottom: 10px; font-size: 14px; line-height: 1.5; }
+    .chat-msg.user { color: #7c6fff; }
+    .chat-msg.bot { color: #e0e0e0; }
+    .chat-msg .label { font-size: 11px; color: #555; margin-bottom: 2px; }
+    .chat-msg pre { white-space: pre-wrap; word-break: break-all; font-family: inherit; }
+
+    .placeholder-chat { color: #444; text-align: center; margin-top: 120px; font-size: 14px; }
+
+    /* 充值 */
+    .order-item { background: #16162a; border: 1px solid #2a2a4a; border-radius: 10px; padding: 12px 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+    .order-item .status { padding: 3px 10px; border-radius: 4px; font-size: 12px; }
+    .status.pending { background: #2a2510; color: #f0c040; }
+    .status.approved { background: #152a15; color: #4aff4a; }
+    .status.rejected { background: #2a1515; color: #ff4a4a; }
+
+    /* Admin */
+    .admin-panel { display: none; }
+    .admin-panel.show { display: block; }
+
+    .user-item { background: #16162a; border: 1px solid #2a2a4a; border-radius: 10px; padding: 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .user-item .user-info { font-size: 14px; }
+    .user-item .user-meta { font-size: 12px; color: #555; margin-top: 2px; }
+    .topup-item { background: #16162a; border: 1px solid #2a2a4a; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+    .topup-item .topup-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .topup-item .topup-actions { display: flex; gap: 8px; }
+
+    .nav-tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid #2a2a4a; padding-bottom: 0; }
+    .nav-tab { padding: 8px 16px; cursor: pointer; color: #666; font-size: 14px; border-bottom: 2px solid transparent; transition: all 0.2s; }
+    .nav-tab:hover { color: #aaa; }
+    .nav-tab.active { color: #7c6fff; border-bottom-color: #7c6fff; }
+  </style>
+</head>
+<body>
+
+<!-- ========== 登录/注册 ========== -->
+<div id="auth-page" class="auth-box">
+  <div class="auth-card">
+    <h1>🔑 API Token 商店</h1>
+    <p>DeepSeek API 分销平台 · 本地测试版</p>
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('login')">登录</div>
+      <div class="tab" onclick="switchTab('register')">注册</div>
+    </div>
+    <div id="msg-box"></div>
+    <div id="login-form">
+      <input type="email" id="login-email" placeholder="邮箱" />
+      <input type="password" id="login-pwd" placeholder="密码" />
+      <button onclick="doLogin()">登录</button>
+    </div>
+    <div id="register-form" style="display:none">
+      <input type="email" id="reg-email" placeholder="邮箱" />
+      <input type="password" id="reg-pwd" placeholder="密码（至少6位）" />
+      <button onclick="doRegister()">注册</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 主界面 ========== -->
+<div id="dashboard" class="dashboard">
+
+  <!-- 顶栏 -->
+  <div class="topbar">
+    <div class="logo">🔑 API Token 商店</div>
+    <div class="right">
+      <span class="user-email" id="show-email"></span>
+      <span class="admin-tag" id="admin-tag" style="display:none">管理员</span>
+      <button class="secondary" onclick="logout()">退出</button>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- 余额卡片 -->
+    <div class="card">
+      <h2>💰 我的账户</h2>
+      <div class="stat">
+        <div class="num" id="my-balance">0.0000</div>
+        <div class="label">M Tokens（百万 tokens）</div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- API Keys -->
+      <div class="card">
+        <h2>🔑 我的 Keys</h2>
+        <div class="form-row">
+          <input type="text" id="new-key-name" placeholder="备注（可选）" style="display:none" />
+          <button onclick="genKey()" style="flex-shrink:0">+ 生成新 Key</button>
+        </div>
+        <div id="keys-list">暂无 Key，点击上方按钮生成</div>
+      </div>
+
+      <!-- 充值 -->
+      <div class="card">
+        <h2>💎 充值</h2>
+        <div class="form-row">
+          <input type="number" id="topup-amount" placeholder="充值金额（元）" min="1" />
+          <button onclick="submitTopup()" style="flex-shrink:0">申请充值</button>
+        </div>
+        <div id="topup-list"></div>
+      </div>
+    </div>
+
+    <!-- Chat 测试 -->
+    <div class="card">
+      <h2>🤖 API 测试</h2>
+      <select id="chat-key" style="width:100%;padding:10px 14px;background:#16162a;border:1px solid #2a2a4a;border-radius:10px;color:#e0e0e0;margin-bottom:12px;font-size:14px;">
+        <option value="">— 先选择一个 Key —</option>
+      </select>
+      <div style="display:flex;gap:10px;margin-bottom:12px">
+        <select id="chat-model" style="flex:1;padding:10px 14px;background:#16162a;border:1px solid #2a2a4a;border-radius:10px;color:#e0e0e0;font-size:14px;">
+          <option value="qwen-plus">GPT-4 Plus (qwen-plus)</option>
+          <option value="qwen-turbo">GPT-4 Turbo (qwen-turbo)</option>
+          <option value="qwen-max">GPT-4 Max (qwen-max)</option>
+          <option value="qwen-long">GPT-4 Long (qwen-long)</option>
+        </select>
+      </div>
+      <div class="chat-area" id="chat-area">
+        <div class="placeholder-chat">选择 Key 后在此对话测试<br>消息会调用 GPT 模型并扣减额度</div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <input type="text" id="chat-input" placeholder="输入你想问的问题..." style="margin:0" onkeydown="if(event.key==='Enter')sendChat()" />
+        <button onclick="sendChat()" style="width:80px;flex-shrink:0">发送</button>
+        <button class="secondary" onclick="clearChat()" style="width:80px;flex-shrink:0">清空</button>
+      </div>
+      <div style="margin-top:10px;font-size:12px;color:#555" id="price-hint"></div>
+    </div>
+
+    <!-- 管理员面板 -->
+    <div class="admin-panel" id="admin-panel">
+      <div class="nav-tabs">
+        <div class="nav-tab active" onclick="switchAdminTab('users')">👥 用户管理</div>
+        <div class="nav-tab" onclick="switchAdminTab('topups')">📋 充值审批</div>
+        <div class="nav-tab" onclick="switchAdminTab('logs')">📡 调用日志</div>
+        <div class="nav-tab" onclick="switchAdminTab('stats')">📊 数据统计</div>
+        <div class="nav-tab" onclick="switchAdminTab('settings')">⚙️ 设置</div>
+      </div>
+
+      <!-- 用户管理 -->
+      <div id="admin-users">
+        <div id="admin-users-list"></div>
+      </div>
+
+      <!-- 充值审批 -->
+      <div id="admin-topups" style="display:none">
+        <div id="admin-topups-list"></div>
+      </div>
+
+      <!-- 调用日志 -->
+      <div id="admin-logs" style="display:none">
+        <div class="card">
+          <h2>📡 调用日志监控</h2>
+          <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+            <select id="log-filter-user" style="padding:8px 12px;background:#16162a;border:1px solid #2a2a4a;border-radius:8px;color:#e0e0e0;font-size:13px;">
+              <option value="">全部用户</option>
+            </select>
+            <select id="log-filter-provider" style="padding:8px 12px;background:#16162a;border:1px solid #2a2a4a;border-radius:8px;color:#e0e0e0;font-size:13px;">
+              <option value="">全部服务商</option>
+              <option value="dashscope">GPT-4 (百炼)</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="system">系统操作</option>
+            </select>
+            <button class="secondary small" onclick="loadLogs(1)">筛选</button>
+            <button class="secondary small" onclick="exportLogs()">导出 CSV</button>
+          </div>
+          <div id="admin-logs-list"></div>
+          <div id="logs-pagination" style="display:flex;gap:8px;justify-content:center;margin-top:12px;"></div>
+        </div>
+      </div>
+
+      <!-- 数据统计 -->
+      <div id="admin-stats" style="display:none">
+        <div class="grid">
+          <div class="card"><div class="stat"><div class="num" id="stat-users">0</div><div class="label">注册用户</div></div></div>
+          <div class="card"><div class="stat"><div class="num" id="stat-keys">0</div><div class="label">API Keys</div></div></div>
+          <div class="card"><div class="stat"><div class="num" id="stat-used">0</div><div class="label">总消耗 Tokens</div></div></div>
+          <div class="card"><div class="stat"><div class="num" id="stat-pending">0</div><div class="label">待处理充值</div></div></div>
+        </div>
+      </div>
+
+      <!-- 设置 -->
+      <div id="admin-settings" style="display:none">
+        <div class="card">
+          <h2>💹 定价设置</h2>
+          <div class="form-row">
+            <input type="number" id="set-price" placeholder="价格（元/百万 tokens）" step="0.1" />
+            <button onclick="setPrice()">保存</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>🔑 上游 API 配置</h2>
+          <h3 style="font-size:14px;color:#aaa;margin:10px 0 6px">服务商</h3>
+          <select id="set-provider" onchange="loadAdminSettings()" style="width:100%;padding:10px;background:#16162a;border:1px solid #2a2a4a;border-radius:8px;color:#e0e0e0;margin-bottom:12px;font-size:14px;">
+            <option value="dashscope">🤖 GPT-4 (阿里云百炼)</option>
+            <option value="deepseek">🧠 DeepSeek</option>
+          </select>
+          <input type="password" id="set-dskey" placeholder="sk-..." style="width:100%;padding:10px;background:#16162a;border:1px solid #2a2a4a;border-radius:8px;color:#e0e0e0;margin-bottom:10px;font-size:14px;box-sizing:border-box;display:block" />
+          <button onclick="setProvider()">保存配置</button>
+          <p style="color:#555;font-size:12px;margin-top:8px">此 Key 用于代理转发用户请求，管理员自行充值额度</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API = '';
+let token = localStorage.getItem('token');
+let currentUser = null;
+let pricePerMillion = 5;
+
+// ==================== 认证 ====================
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('login-form').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('register-form').style.display = tab === 'register' ? 'block' : 'none';
+  document.getElementById('msg-box').style.display = 'none';
+}
+
+function showMsg(el, msg, type) {
+  el.className = `msg ${type}`;
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 4000);
+}
+
+async function doRegister() {
+  const email = document.getElementById('reg-email').value.trim();
+  const pwd = document.getElementById('reg-pwd').value;
+  const res = await fetch(API + '/api/register', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password: pwd })
+  });
+  const data = await res.json();
+  const box = document.getElementById('msg-box');
+  if (res.ok) {
+    showMsg(box, '注册成功！请登录', 'success');
+    switchTab('login');
+  } else {
+    showMsg(box, data.error, 'error');
+  }
+}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pwd = document.getElementById('login-pwd').value;
+  const res = await fetch(API + '/api/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password: pwd })
+  });
+  const data = await res.json();
+  const box = document.getElementById('msg-box');
+  if (res.ok) {
+    token = data.token;
+    localStorage.setItem('token', token);
+    currentUser = data;
+    showDashboard();
+  } else {
+    showMsg(box, data.error, 'error');
+  }
+}
+
+function logout() {
+  token = null;
+  currentUser = null;
+  localStorage.removeItem('token');
+  document.getElementById('dashboard').classList.remove('show');
+  document.getElementById('auth-page').style.display = 'flex';
+}
+
+// ==================== 主界面 ====================
+
+async function showDashboard() {
+  document.getElementById('auth-page').style.display = 'none';
+  document.getElementById('dashboard').classList.add('show');
+
+  const res = await fetch(API + '/api/me', { headers: { Authorization: 'Bearer ' + token } });
+  const data = await res.json();
+  currentUser = { ...currentUser, ...data.user };
+
+  document.getElementById('show-email').textContent = currentUser.email;
+  document.getElementById('my-balance').textContent = (currentUser.balance / 1_000_000).toFixed(4);
+
+  if (currentUser.is_admin) {
+    document.getElementById('admin-tag').style.display = 'inline';
+    document.getElementById('admin-panel').classList.add('show');
+    loadAdminData();
+  }
+
+  renderKeys(data.keys || []);
+  renderTopups();
+}
+
+async function renderKeys(keys) {
+  const sel = document.getElementById('chat-key');
+  sel.innerHTML = '<option value="">— 先选择一个 Key —</option>';
+  const container = document.getElementById('keys-list');
+
+  if (!keys.length) {
+    container.innerHTML = '暂无 Key，点击上方按钮生成';
+    return;
+  }
+
+  container.innerHTML = '';
+  for (const k of keys) {
+    sel.innerHTML += `<option value="${k.api_key}">${k.api_key.slice(0, 20)}... (${(k.balance/1_000_000).toFixed(4)}M)</option>`;
+    const div = document.createElement('div');
+    div.className = 'key-item';
+    div.innerHTML = `
+      <div>
+        <div class="key-text">${k.api_key}</div>
+        <div class="key-info">余额: ${(k.balance/1_000_000).toFixed(4)}M | 已用: ${(k.used/1_000_000).toFixed(4)}M | 创建: ${new Date(k.created_at).toLocaleDateString()}</div>
+      </div>
+      <div class="key-actions">
+        <button class="secondary small" onclick="navigator.clipboard.writeText('${k.api_key}')">复制</button>
+        <button class="danger small" onclick="delKey('${k.id}')">删除</button>
+      </div>
+    `;
+    container.appendChild(div);
+  }
+}
+
+async function genKey() {
+  const res = await fetch(API + '/api/keys', { method: 'POST', headers: { Authorization: 'Bearer ' + token } });
+  if (res.ok) { loadMe(); }
+}
+
+async function delKey(id) {
+  if (!confirm('确定删除此 Key？')) return;
+  await fetch(API + '/api/keys/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+  loadMe();
+}
+
+async function loadMe() {
+  const res = await fetch(API + '/api/me', { headers: { Authorization: 'Bearer ' + token } });
+  const data = await res.json();
+  currentUser.balance = data.user.balance;
+  document.getElementById('my-balance').textContent = (currentUser.balance / 1_000_000).toFixed(4);
+  renderKeys(data.keys || []);
+  renderTopups();
+}
+
+// ==================== 充值 ====================
+
+async function submitTopup() {
+  const amount = document.getElementById('topup-amount').value;
+  if (!amount) return alert('请输入金额');
+  const res = await fetch(API + '/api/topup', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount: parseInt(amount) })
+  });
+  const data = await res.json();
+  alert(data.message || data.error);
+  if (res.ok) { document.getElementById('topup-amount').value = ''; loadMe(); }
+}
+
+async function renderTopups() {
+  const res = await fetch(API + '/api/topup', { headers: { Authorization: 'Bearer ' + token } });
+  const orders = await res.json();
+  const container = document.getElementById('topup-list');
+  if (!orders.length) { container.innerHTML = '暂无充值记录'; return; }
+  container.innerHTML = orders.map(o => `
+    <div class="order-item">
+      <div>
+        <div style="font-size:14px">¥${o.amount} → ${(o.amount / pricePerMillion).toFixed(4)} M tokens</div>
+        <div style="font-size:12px;color:#555">${new Date(o.created_at).toLocaleString()}</div>
+      </div>
+      <span class="status ${o.status}">${o.status === 'pending' ? '待审核' : o.status === 'approved' ? '已通过' : '已拒绝'}</span>
+    </div>
+  `).join('');
+}
+
+// ==================== Chat ====================
+
+async function sendChat() {
+  const apiKey = document.getElementById('chat-key').value;
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text || !apiKey) { if (!apiKey) alert('请先选择一个 Key'); return; }
+
+  const area = document.getElementById('chat-area');
+  if (area.querySelector('.placeholder-chat')) area.innerHTML = '';
+
+  // 用户消息
+  area.innerHTML += `<div class="chat-msg user"><div class="label">你</div><pre>${escapeHtml(text)}</pre></div>`;
+
+  // 机器人消息
+  const model = document.getElementById('chat-model').value;
+  const modelLabel = model.includes('qwen') ? 'GPT-4' : model.includes('deepseek') ? 'DeepSeek' : model;
+  const botDiv = document.createElement('div');
+  botDiv.className = 'chat-msg bot';
+  botDiv.innerHTML = `<div class="label">${modelLabel}</div><pre>思考中...</pre>`;
+  area.appendChild(botDiv);
+  area.scrollTop = area.scrollHeight;
+  input.value = '';
+
+  try {
+    const res = await fetch(API + '/api/chat', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: apiKey, messages: [{ role: 'user', content: text }], model })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      botDiv.querySelector('pre').textContent = data.reply;
+      document.getElementById('price-hint').textContent = `本次消耗: ${data.usage?.total_tokens || 0} tokens ≈ ¥${data.cost?.toFixed(4) || 0}`;
+      loadMe(); // 更新余额
+    } else {
+      botDiv.querySelector('pre').textContent = '❌ ' + data.error;
+    }
+  } catch (e) {
+    botDiv.querySelector('pre').textContent = '❌ 请求失败: ' + e.message;
+  }
+
+  area.scrollTop = area.scrollHeight;
+}
+
+function clearChat() {
+  document.getElementById('chat-area').innerHTML = '<div class="placeholder-chat">选择 Key 后在此对话测试<br>消息会通过阿里云百炼调用通义千问并扣减额度</div>';
+  document.getElementById('price-hint').textContent = '';
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// ==================== 管理员 ====================
+
+function switchAdminTab(tab) {
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  ['users','topups','logs','stats','settings'].forEach(t => {
+    document.getElementById('admin-' + t).style.display = t === tab ? 'block' : 'none';
+  });
+  if (tab === 'settings') loadAdminSettings();
+  if (tab === 'logs') { loadLogFilter(); loadLogs(1); }
+}
+
+async function loadAdminData() {
+  // 统计
+  const s = await fetch(API + '/api/admin/stats', { headers: { Authorization: 'Bearer ' + token } });
+  const stats = await s.json();
+  document.getElementById('stat-users').textContent = stats.users;
+  document.getElementById('stat-keys').textContent = stats.keys;
+  document.getElementById('stat-used').textContent = stats.totalUsed.toLocaleString();
+  document.getElementById('stat-pending').textContent = stats.pendingTopups;
+
+  // 用户
+  const u = await fetch(API + '/api/admin/users', { headers: { Authorization: 'Bearer ' + token } });
+  const users = await u.json();
+  document.getElementById('admin-users-list').innerHTML = users.map(user => `
+    <div class="user-item">
+      <div class="user-info">
+        <div>${user.email} ${user.is_admin ? '👑' : ''}</div>
+        <div class="user-meta">余额: ${(user.balance/1_000_000).toFixed(4)}M | 注册: ${new Date(user.created_at).toLocaleDateString()}</div>
+      </div>
+      <div class="key-actions">
+        <button class="secondary small" onclick="adjustBalance('${user.id}','${user.email}')">调整余额</button>
+      </div>
+    </div>
+  `).join('') || '暂无用户';
+
+  // 充值申请
+  const t = await fetch(API + '/api/admin/topups', { headers: { Authorization: 'Bearer ' + token } });
+  const topups = await t.json();
+  document.getElementById('admin-topups-list').innerHTML = topups.map(tr => `
+    <div class="topup-item">
+      <div class="topup-header">
+        <div>
+          <div style="font-size:14px">${tr.email}</div>
+          <div style="font-size:12px;color:#555">¥${tr.amount} → ${(tr.amount / pricePerMillion).toFixed(4)} M tokens · ${new Date(tr.created_at).toLocaleString()}</div>
+        </div>
+        <span class="status ${tr.status}">${tr.status === 'pending' ? '待审核' : tr.status === 'approved' ? '已通过' : '已拒绝'}</span>
+      </div>
+      ${tr.status === 'pending' ? `
+        <div class="topup-actions">
+          <button class="small" onclick="handleTopup('${tr.id}','approve')">✅ 通过</button>
+          <button class="danger small" onclick="handleTopup('${tr.id}','reject')">❌ 拒绝</button>
+        </div>
+      ` : ''}
+    </div>
+  `).join('') || '暂无申请';
+}
+
+async function adjustBalance(userId, email) {
+  const action = confirm(`用户: ${email}\n\n点击「确定」= 增加余额\n点击「取消」= 减少余额`);
+  const isAdd = !!action;
+  const val = prompt(isAdd ? '增加多少 M tokens？（如 1 = 100万）' : '减少多少 M tokens？（如 1 = 100万）');
+  if (!val || isNaN(val)) return;
+  const amount = Math.floor(parseFloat(val) * 1_000_000) * (isAdd ? 1 : -1);
+  const res = await fetch(API + '/api/admin/adjust-balance', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId, amount })
+  });
+  const data = await res.json();
+  alert(data.message);
+  loadAdminData();
+}
+
+async function handleTopup(id, action) {
+  await fetch(API + `/api/admin/topup/${id}/${action}`, { headers: { Authorization: 'Bearer ' + token } });
+  loadAdminData();
+}
+
+async function setPrice() {
+  const price = document.getElementById('set-price').value;
+  if (!price) return;
+  await fetch(API + '/api/admin/price', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ price: parseFloat(price) })
+  });
+  alert('价格已更新');
+}
+
+async function loadAdminSettings() {
+  const res = await fetch(API + '/api/admin/settings', { headers: { Authorization: 'Bearer ' + token } });
+  const s = await res.json();
+  document.getElementById('set-provider').value = s.provider || 'dashscope';
+  document.getElementById('set-price').value = s.price || 1;
+  document.getElementById('set-dskey').placeholder = s.provider === 'dashscope'
+    ? '阿里云百炼 API Key（sk-...）'
+    : 'DeepSeek API Key（sk-...）';
+}
+
+async function setProvider() {
+  const provider = document.getElementById('set-provider').value;
+  const api_key = document.getElementById('set-dskey').value;
+  const res = await fetch(API + '/api/admin/provider', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider, api_key })
+  });
+  const data = await res.json();
+  alert(data.message);
+  loadAdminSettings();
+}
+
+// ==================== 调用日志 ====================
+let logPage = 1;
+
+async function loadLogFilter() {
+  const res = await fetch(API + '/api/admin/users', { headers: { Authorization: 'Bearer ' + token } });
+  const users = await res.json();
+  const sel = document.getElementById('log-filter-user');
+  sel.innerHTML = '<option value="">全部用户</option>' + users.map(u => `<option value="${u.id}">${u.email}</option>`).join('');
+}
+
+async function loadLogs(page) {
+  logPage = page || 1;
+  const userId = document.getElementById('log-filter-user').value;
+  const provider = document.getElementById('log-filter-provider').value;
+  const params = new URLSearchParams({ page: logPage, limit: 20 });
+  if (userId) params.set('user_id', userId);
+  if (provider) params.set('provider', provider);
+
+  const res = await fetch(`${API}/api/admin/logs?${params}`, { headers: { Authorization: 'Bearer ' + token } });
+  const data = await res.json();
+  const container = document.getElementById('admin-logs-list');
+
+  if (!data.logs.length) {
+    container.innerHTML = '<div style="color:#555;text-align:center;padding:20px">暂无日志记录</div>';
+    return;
+  }
+
+  container.innerHTML = data.logs.map(l => {
+    const isSystem = l.provider === 'system';
+    const modelLabel = l.model === 'admin_add' ? '➕ 管理员加额' : l.model === 'admin_subtract' ? '➖ 管理员扣减' : l.model || '-';
+    const costStr = isSystem ? '-' : `¥${parseFloat(l.cost || 0).toFixed(4)}`;
+    const tokenColor = isSystem ? '#f0c040' : '#e0e0e0';
+    return `
+      <div class="order-item" style="flex-direction:column;align-items:flex-start">
+        <div style="display:flex;justify-content:space-between;width:100%">
+          <div>
+            <span style="font-size:14px;font-weight:bold">${modelLabel}</span>
+            ${l.provider !== 'system' ? `<span style="font-size:11px;color:#7c6fff;margin-left:8px;padding:1px 6px;border-radius:3px;background:#2a2a4a">${l.provider === 'dashscope' ? 'GPT-4' : l.provider}</span>` : ''}
+          </div>
+          <span style="font-size:12px;color:${tokenColor}">${isSystem ? '' : l.tokens + ' tokens · '}${costStr}</span>
+        </div>
+        <div style="font-size:12px;color:#555;margin-top:4px">
+          👤 ${l.email || '未知'} · 🕐 ${new Date(l.created_at).toLocaleString()}
+          ${l.api_key ? `<span style="color:#44affa">· Key: ${l.api_key.slice(0,16)}...</span>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // 分页
+  const pag = document.getElementById('logs-pagination');
+  if (data.totalPages <= 1) { pag.innerHTML = ''; return; }
+  let html = '';
+  if (logPage > 1) html += `<button class="secondary small" onclick="loadLogs(${logPage-1})">上一页</button>`;
+  html += `<span style="color:#888;font-size:12px;line-height:28px">第 ${logPage}/${data.totalPages} 页（共 ${data.total} 条）</span>`;
+  if (logPage < data.totalPages) html += `<button class="secondary small" onclick="loadLogs(${logPage+1})">下一页</button>`;
+  pag.innerHTML = html;
+}
+
+async function exportLogs() {
+  const a = document.createElement('a');
+  a.href = `${API}/api/admin/logs/export`;
+  a.download = 'logs.csv';
+  // 带 auth header 需要改用 fetch
+  const res = await fetch(a.href, { headers: { Authorization: 'Bearer ' + token } });
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url; link.download = 'logs.csv'; link.click();
+  URL.revokeObjectURL(url);
+}
+
+// ==================== 启动 ====================
+
+if (token) {
+  showDashboard();
+} else {
+  document.getElementById('auth-page').style.display = 'flex';
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+node_modules/
+database.sqlite
+.env
+*.bat
+test-*.js
+debug-*.js
+reset-pwd.js
+migrate.js
+get-key.js
+setup-dashscope.js
+run-test.bat
