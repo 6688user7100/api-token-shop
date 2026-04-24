@@ -82,14 +82,27 @@ db.exec(`
 `);
 
 // 初始化默认设置
+// 默认设置（首次创建时使用）
 const defaultSettings = {
   price_per_million: '1',
   deepseek_api_key: '',
-  dashscope_api_key: process.env.DASHSCOPE_API_KEY || '',
-  provider: 'dashscope',   // 'dashscope' | 'deepseek'
+  dashscope_api_key: '',
+  provider: 'dashscope',
 };
 for (const [k, v] of Object.entries(defaultSettings)) {
   db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run(k, JSON.stringify(v));
+}
+
+// 从环境变量同步关键配置（每次启动强制覆盖）
+const envSync = {
+  dashscope_api_key: process.env.DASHSCOPE_API_KEY,
+  deepseek_api_key: process.env.DEEPSEEK_API_KEY,
+};
+for (const [k, envVal] of Object.entries(envSync)) {
+  if (envVal) {
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(k, JSON.stringify(envVal));
+    console.log(`[init] Synced ${k} from environment variable`);
+  }
 }
 
 // ==================== 辅助函数 ====================
