@@ -355,7 +355,8 @@ async function showDashboard() {
   currentUser = { ...currentUser, ...data.user };
 
   document.getElementById('show-email').textContent = currentUser.email;
-  document.getElementById('my-balance').textContent = (currentUser.balance / 1_000_000).toFixed(4);
+  const balance = currentUser.balance || 0;
+  document.getElementById('my-balance').textContent = (balance / 1_000_000).toFixed(4);
 
   if (currentUser.is_admin) {
     document.getElementById('admin-tag').style.display = 'inline';
