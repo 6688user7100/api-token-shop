@@ -263,13 +263,14 @@
         <div class="card">
           <h2>🔑 上游 API 配置</h2>
           <h3 style="font-size:14px;color:#aaa;margin:10px 0 6px">服务商</h3>
-          <select id="set-provider" onchange="loadAdminSettings()" style="width:100%;padding:10px;background:#16162a;border:1px solid #2a2a4a;border-radius:8px;color:#e0e0e0;margin-bottom:12px;font-size:14px;">
+          <select id="set-provider" style="width:100%;padding:10px;background:#16162a;border:1px solid #2a2a4a;border-radius:8px;color:#e0e0e0;margin-bottom:12px;font-size:14px;">
             <option value="dashscope">🤖 GPT-4 (阿里云百炼)</option>
             <option value="deepseek">🧠 DeepSeek</option>
           </select>
-          <input type="password" id="set-dskey" placeholder="sk-..." style="width:100%;padding:10px;background:#16162a;border:1px solid #2a2a4a;border-radius:8px;color:#e0e0e0;margin-bottom:10px;font-size:14px;box-sizing:border-box;display:block" />
-          <button onclick="setProvider()">保存配置</button>
-          <p style="color:#555;font-size:12px;margin-top:8px">此 Key 用于代理转发用户请求，管理员自行充值额度</p>
+          <h3 style="font-size:14px;color:#aaa;margin:10px 0 6px">API Key</h3>
+          <input type="text" id="set-dskey" placeholder="粘贴你的 API Key（sk-...）" style="width:100%;padding:10px;background:#16162a;border:1px solid #2a2a4a;border-radius:8px;color:#e0e0e0;margin-bottom:10px;font-size:14px;box-sizing:border-box;display:block" />
+          <button onclick="setProvider()">💾 保存配置</button>
+          <div id="key-status" style="margin-top:8px;font-size:12px;color:#555"></div>
         </div>
       </div>
     </div>
@@ -592,25 +593,55 @@ async function setPrice() {
 }
 
 async function loadAdminSettings() {
-  const res = await fetch(API + '/api/admin/settings', { headers: { Authorization: 'Bearer ' + token } });
-  const s = await res.json();
-  document.getElementById('set-provider').value = s.provider || 'dashscope';
-  document.getElementById('set-price').value = s.price || 1;
-  document.getElementById('set-dskey').placeholder = s.provider === 'dashscope'
-    ? '阿里云百炼 API Key（sk-...）'
-    : 'DeepSeek API Key（sk-...）';
+  try {
+    const res = await fetch(API + '/api/admin/settings', { headers: { Authorization: 'Bearer ' + token } });
+    if (!res.ok) {
+      document.getElementById('key-status').textContent = '❌ 加载设置失败（可能不是管理员）';
+      document.getElementById('key-status').style.color = '#ff4a4a';
+      return;
+    }
+    const s = await res.json();
+    document.getElementById('set-provider').value = s.provider || 'dashscope';
+    document.getElementById('set-price').value = s.price || 1;
+    document.getElementById('set-dskey').placeholder = s.provider === 'dashscope'
+      ? '粘贴阿里云百炼 API Key（sk-...）'
+      : '粘贴 DeepSeek API Key（sk-...）';
+    const statusEl = document.getElementById('key-status');
+    if (s.provider === 'dashscope') {
+      statusEl.textContent = s.hasDashscopeKey ? '✅ 百炼 API Key 已配置' : '⚠️ 百炼 API Key 未配置';
+      statusEl.style.color = s.hasDashscopeKey ? '#4aff4a' : '#f0c040';
+    } else {
+      statusEl.textContent = s.hasDeepseekKey ? '✅ DeepSeek API Key 已配置' : '⚠️ DeepSeek API Key 未配置';
+      statusEl.style.color = s.hasDeepseekKey ? '#4aff4a' : '#f0c040';
+    }
+  } catch(e) {
+    console.error('loadAdminSettings error:', e);
+  }
 }
 
 async function setProvider() {
   const provider = document.getElementById('set-provider').value;
-  const api_key = document.getElementById('set-dskey').value;
-  const res = await fetch(API + '/api/admin/provider', {
-    method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ provider, api_key })
-  });
-  const data = await res.json();
-  alert(data.message);
-  loadAdminSettings();
+  const api_key = document.getElementById('set-dskey').value.trim();
+  if (!api_key) {
+    alert('请先粘贴 API Key');
+    return;
+  }
+  try {
+    const res = await fetch(API + '/api/admin/provider', {
+      method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, api_key })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      alert('✅ ' + data.message);
+      document.getElementById('set-dskey').value = '';
+    } else {
+      alert('❌ ' + (data.error || '保存失败'));
+    }
+    loadAdminSettings();
+  } catch(e) {
+    alert('❌ 请求失败: ' + e.message);
+  }
 }
 
 // ==================== 调用日志 ====================

@@ -169,8 +169,10 @@ app.post('/api/register', async (req, res) => {
 
   const hash = await bcrypt.hash(password, 10);
   const id = uuidv4();
-  db.prepare('INSERT INTO users (id, email, password, is_admin) VALUES (?,?,?,?)').run(id, email, hash, isAdmin ? 1 : 0);
-  res.json({ message: '注册成功' });
+  // 新用户赠送 10M tokens 初始额度
+  const startBalance = 10_000_000;
+  db.prepare('INSERT INTO users (id, email, password, is_admin, balance) VALUES (?,?,?,?,?)').run(id, email, hash, isAdmin ? 1 : 0, startBalance);
+  res.json({ message: '注册成功，已赠送 10M tokens 体验额度' });
 });
 
 app.post('/api/login', async (req, res) => {
@@ -233,12 +235,10 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     return res.status(500).json({ error: '上游 API 未配置，请联系管理员' });
   }
 
-  // 模型处理：DeepSeek → 透传；阿里云百炼 → 统一前缀映射
   let targetModel = model || providerConfig.defaultModel;
-  if (providerConfig.provider === 'dashscope') {
-    // 百炼模型映射（兼容 qwen-plus、qwen-max 等）
-    // 透传即可，DashScope 接受 qwen-plus、qwen-turbo 等
-  }
+
+  // 检查用户余额（从 users 表扣，不是 api_keys 表）
+  const user = db.prepare('SELECT balance FROM users WHERE id=?').get(req.user.id);
 
   try {
     const response = await axios.post(
@@ -261,17 +261,17 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const usage = response.data.usage || {};
     const inputTokens = usage.prompt_tokens || 0;
     const outputTokens = usage.completion_tokens || 0;
-    // 响应文本 token 数按 output 估算（汉字 ≈ 字符 × 1.5）
     const totalTokens = inputTokens + outputTokens;
 
     const price = PRICE_PER_MILLION();
     const cost = (totalTokens / 1_000_000) * price;
 
-    // 扣余额（至少扣 input_tokens + 估算 output）
-    if (keyRec.balance < totalTokens) {
+    // 扣用户余额
+    if (user.balance < totalTokens) {
       return res.status(402).json({ error: '额度不足，请充值' });
     }
-    db.prepare('UPDATE api_keys SET balance=balance-?, used=used+? WHERE id=?').run(totalTokens, totalTokens, keyRec.id);
+    db.prepare('UPDATE users SET balance=balance-? WHERE id=?').run(totalTokens, req.user.id);
+    db.prepare('UPDATE api_keys SET used=used+? WHERE id=?').run(totalTokens, keyRec.id);
 
     // 记录日志
     db.prepare('INSERT INTO usage_logs (id, user_id, api_key_id, tokens, cost, model, provider) VALUES (?,?,?,?,?,?,?)').run(
